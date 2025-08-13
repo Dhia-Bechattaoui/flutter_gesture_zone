@@ -40,6 +40,21 @@ class GestureZoneController extends ChangeNotifier {
   /// Callback for all gestures.
   GestureCallback? _onAnyGesture;
 
+  /// Creates a new GestureZoneController.
+  ///
+  /// The [config] parameter is optional. If not provided, a default configuration
+  /// will be used that provides balanced gesture recognition settings.
+  ///
+  /// Example:
+  /// ```dart
+  /// // Using default configuration
+  /// final controller = GestureZoneController();
+  ///
+  /// // Using custom configuration
+  /// final controller = GestureZoneController(
+  ///   config: GestureConfig.precise(),
+  /// );
+  /// ```
   GestureZoneController({GestureConfig? config})
       : _config = config ?? GestureConfig.defaultConfig() {
     _recognition = GestureRecognition(config: _config);
@@ -149,6 +164,20 @@ class GestureZoneController extends ChangeNotifier {
 
     // Recognize multi-touch gestures
     if (_activeTouchPoints.length == 2) {
+      // Try to recognize pinch gesture
+      final pinchResult = _recognition.recognizePinchGesture(_touchHistory);
+      if (pinchResult != null) {
+        _triggerGesture(pinchResult);
+      }
+
+      // Try to recognize rotation gesture
+      final rotationResult =
+          _recognition.recognizeRotationGesture(_touchHistory);
+      if (rotationResult != null) {
+        _triggerGesture(rotationResult);
+      }
+
+      // Also try the general multi-touch recognition
       final multiTouchPoints = _activeTouchPoints.values.toList();
       final result = _recognition.recognizeGesture(multiTouchPoints);
       if (result != null) {

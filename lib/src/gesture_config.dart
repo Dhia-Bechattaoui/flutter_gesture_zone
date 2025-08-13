@@ -42,6 +42,19 @@ class GestureConfig {
   /// Minimum velocity required for swipe gesture recognition.
   final double minSwipeVelocity;
 
+  /// Creates a new gesture configuration with the specified parameters.
+  ///
+  /// All parameters are optional and will use sensible defaults if not specified.
+  /// The configuration can be further customized using the `copyWith` method.
+  ///
+  /// Example:
+  /// ```dart
+  /// final config = GestureConfig(
+  ///   minDragDistance: 10.0,
+  ///   longPressTime: Duration(milliseconds: 600),
+  ///   enableMultiTouch: true,
+  /// );
+  /// ```
   const GestureConfig({
     this.minDragDistance = 8.0,
     this.minSwipeDistance = 50.0,

@@ -26,6 +26,21 @@ class TouchPoint {
   /// The orientation of the touch point in radians.
   final double orientation;
 
+  /// Creates a new TouchPoint with the specified parameters.
+  ///
+  /// The [pointerId], [position], and [timestamp] parameters are required.
+  /// The [pressure], [radius], [radiusMajor], [radiusMinor], and [orientation]
+  /// parameters are optional and will use sensible defaults if not specified.
+  ///
+  /// Example:
+  /// ```dart
+  /// final touchPoint = TouchPoint(
+  ///   pointerId: 1,
+  ///   position: Offset(100, 200),
+  ///   timestamp: Duration(milliseconds: 1000),
+  ///   pressure: 0.8,
+  /// );
+  /// ```
   const TouchPoint({
     required this.pointerId,
     required this.position,

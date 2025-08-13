@@ -85,6 +85,26 @@ class GestureZone extends StatefulWidget {
   /// Callback for custom gestures.
   final GestureCallback? onCustom;
 
+  /// Creates a new GestureZone widget.
+  ///
+  /// The [child] parameter is required and represents the widget that will
+  /// receive gesture recognition capabilities.
+  ///
+  /// All gesture callback parameters are optional. You can provide any combination
+  /// of gesture callbacks based on your needs.
+  ///
+  /// Example:
+  /// ```dart
+  /// GestureZone(
+  ///   onTap: (result) => print('Tap detected'),
+  ///   onSwipeUp: (result) => print('Swipe up detected'),
+  ///   child: Container(
+  ///     width: 200,
+  ///     height: 200,
+  ///     color: Colors.blue,
+  ///   ),
+  /// )
+  /// ```
   const GestureZone({
     super.key,
     required this.child,

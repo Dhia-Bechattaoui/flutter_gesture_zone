@@ -21,6 +21,24 @@ class GestureResult {
   /// The duration of the gesture.
   final Duration duration;
 
+  /// Creates a new gesture result with the specified parameters.
+  ///
+  /// The [confidence] should be a value between 0.0 and 1.0, where 1.0 indicates
+  /// complete certainty in the gesture recognition.
+  ///
+  /// The [data] map can contain any additional information relevant to the gesture,
+  /// such as position, velocity, scale factor, etc.
+  ///
+  /// Example:
+  /// ```dart
+  /// final result = GestureResult(
+  ///   type: GestureType.tap,
+  ///   confidence: 1.0,
+  ///   touchPoints: [touchPoint],
+  ///   duration: Duration(milliseconds: 100),
+  ///   data: {'position': Offset(100, 200)},
+  /// );
+  /// ```
   const GestureResult({
     required this.type,
     required this.confidence,
@@ -37,8 +55,21 @@ class GestureResult {
 
 /// Engine for recognizing gestures from touch data.
 class GestureRecognition {
+  /// The configuration used for gesture recognition.
   final GestureConfig config;
 
+  /// Creates a new gesture recognition engine.
+  ///
+  /// If no configuration is provided, a default configuration will be used.
+  /// The configuration determines sensitivity, timing, and other recognition parameters.
+  ///
+  /// Example:
+  /// ```dart
+  /// final recognition = GestureRecognition();
+  /// final preciseRecognition = GestureRecognition(
+  ///   config: GestureConfig.precise(),
+  /// );
+  /// ```
   GestureRecognition({GestureConfig? config})
       : config = config ?? GestureConfig.defaultConfig();
 
@@ -91,6 +122,99 @@ class GestureRecognition {
     return null;
   }
 
+  /// Recognizes pinch gestures from touch history.
+  GestureResult? recognizePinchGesture(
+    Map<int, List<TouchPoint>> touchHistory,
+  ) {
+    if (touchHistory.length != 2) return null;
+
+    final touchPoints1 = touchHistory.values.first;
+    final touchPoints2 = touchHistory.values.last;
+
+    if (touchPoints1.length < 2 || touchPoints2.length < 2) return null;
+
+    final initialPoint1 = touchPoints1.first;
+    final finalPoint1 = touchPoints1.last;
+    final initialPoint2 = touchPoints2.first;
+    final finalPoint2 = touchPoints2.last;
+
+    final initialDistance = _calculateDistance(
+      initialPoint1.position,
+      initialPoint2.position,
+    );
+    final finalDistance = _calculateDistance(
+      finalPoint1.position,
+      finalPoint2.position,
+    );
+
+    if (initialDistance == 0) return null;
+
+    final scaleFactor = finalDistance / initialDistance;
+    final duration = finalPoint1.timestamp - initialPoint1.timestamp;
+
+    if ((scaleFactor - 1.0).abs() > config.minPinchScale) {
+      return GestureResult(
+        type: GestureType.pinch,
+        confidence: 0.9,
+        touchPoints: [finalPoint1, finalPoint2],
+        duration: duration,
+        data: {
+          'scaleFactor': scaleFactor,
+          'isZoomIn': scaleFactor > 1.0,
+          'center':
+              _calculateCenter(finalPoint1.position, finalPoint2.position),
+        },
+      );
+    }
+
+    return null;
+  }
+
+  /// Recognizes rotation gestures from touch history.
+  GestureResult? recognizeRotationGesture(
+    Map<int, List<TouchPoint>> touchHistory,
+  ) {
+    if (touchHistory.length != 2) return null;
+
+    final touchPoints1 = touchHistory.values.first;
+    final touchPoints2 = touchHistory.values.last;
+
+    if (touchPoints1.length < 2 || touchPoints2.length < 2) return null;
+
+    final initialPoint1 = touchPoints1.first;
+    final finalPoint1 = touchPoints1.last;
+    final initialPoint2 = touchPoints2.first;
+    final finalPoint2 = touchPoints2.last;
+
+    final initialAngle = _calculateAngle(
+      initialPoint1.position,
+      initialPoint2.position,
+    );
+    final finalAngle = _calculateAngle(
+      finalPoint1.position,
+      finalPoint2.position,
+    );
+
+    final rotationAngle = finalAngle - initialAngle;
+    final duration = finalPoint1.timestamp - initialPoint1.timestamp;
+
+    if (rotationAngle.abs() > config.minRotationAngle) {
+      return GestureResult(
+        type: GestureType.rotation,
+        confidence: 0.9,
+        touchPoints: [finalPoint1, finalPoint2],
+        duration: duration,
+        data: {
+          'rotationAngle': rotationAngle,
+          'center':
+              _calculateCenter(finalPoint1.position, finalPoint2.position),
+        },
+      );
+    }
+
+    return null;
+  }
+
   /// Recognizes multi-touch gestures.
   GestureResult? _recognizeMultiTouchGesture(
     List<TouchPoint> touchPoints,
@@ -101,45 +225,29 @@ class GestureRecognition {
     final point1 = touchPoints[0];
     final point2 = touchPoints[1];
 
-    // Calculate initial and final distances
-    final initialDistance = _calculateDistance(
+    // For multi-touch gestures, we need to track the initial positions
+    // Since we're only getting current positions here, we need to get them from history
+    // This method should be called with the full touch history, not just current points
+
+    // Calculate current distance between the two touch points
+    final currentDistance = _calculateDistance(
       point1.position,
       point2.position,
     );
-    final finalDistance = _calculateDistance(point1.position, point2.position);
 
-    // Calculate scale factor
-    final scaleFactor = finalDistance / initialDistance;
+    // For now, we'll use a simplified approach that detects when two fingers are present
+    // In a real implementation, you'd want to track the initial vs final positions
+    // from the touch history to calculate actual scale and rotation changes
 
-    // Check for pinch gesture
-    if ((scaleFactor - 1.0).abs() > config.minPinchScale) {
+    // Check if this is a multi-touch gesture (two fingers present)
+    if (point1.pointerId != point2.pointerId) {
       return GestureResult(
-        type: GestureType.pinch,
-        confidence: 0.9,
+        type: GestureType.multiTouch,
+        confidence: 0.8,
         touchPoints: touchPoints,
         duration: duration,
         data: {
-          'scaleFactor': scaleFactor,
-          'isZoomIn': scaleFactor > 1.0,
-          'center': _calculateCenter(point1.position, point2.position),
-        },
-      );
-    }
-
-    // Calculate rotation angle
-    final initialAngle = _calculateAngle(point1.position, point2.position);
-    final finalAngle = _calculateAngle(point1.position, point2.position);
-    final rotationAngle = finalAngle - initialAngle;
-
-    // Check for rotation gesture
-    if (rotationAngle.abs() > config.minRotationAngle) {
-      return GestureResult(
-        type: GestureType.rotation,
-        confidence: 0.9,
-        touchPoints: touchPoints,
-        duration: duration,
-        data: {
-          'rotationAngle': rotationAngle,
+          'currentDistance': currentDistance,
           'center': _calculateCenter(point1.position, point2.position),
         },
       );
