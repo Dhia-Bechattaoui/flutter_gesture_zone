@@ -70,7 +70,7 @@
 ///
 /// ## License
 /// This package is licensed under the MIT License.
-library flutter_gesture_zone;
+library;
 
 export 'src/gesture_zone.dart';
 export 'src/gesture_zone_controller.dart';

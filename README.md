@@ -2,6 +2,8 @@
 
 A Flutter package for creating custom gesture zones with advanced touch handling, multi-touch support, and gesture recognition.
 
+<img src="assets/example.gif" height="300" alt="Example">
+
 ## Features
 
 - **Advanced Gesture Recognition**: Supports tap, double tap, long press, drag, pinch, rotation, and swipe gestures
@@ -31,7 +33,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  flutter_gesture_zone: ^0.0.4
+  flutter_gesture_zone: ^0.1.0
 ```
 
 ## Quick Start

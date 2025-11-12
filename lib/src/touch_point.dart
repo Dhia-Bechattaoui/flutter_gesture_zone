@@ -2,30 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Represents a single touch point with position, pressure, and timing information.
 class TouchPoint {
-  /// The unique identifier for this touch point.
-  final int pointerId;
-
-  /// The current position of the touch point.
-  final Offset position;
-
-  /// The pressure of the touch (0.0 to 1.0).
-  final double pressure;
-
-  /// The timestamp when this touch point was created.
-  final Duration timestamp;
-
-  /// The radius of the touch point.
-  final double radius;
-
-  /// The radius of the major axis of the touch point.
-  final double radiusMajor;
-
-  /// The radius of the minor axis of the touch point.
-  final double radiusMinor;
-
-  /// The orientation of the touch point in radians.
-  final double orientation;
-
   /// Creates a new TouchPoint with the specified parameters.
   ///
   /// The [pointerId], [position], and [timestamp] parameters are required.
@@ -44,8 +20,8 @@ class TouchPoint {
   const TouchPoint({
     required this.pointerId,
     required this.position,
-    this.pressure = 1.0,
     required this.timestamp,
+    this.pressure = 1.0,
     this.radius = 0.0,
     this.radiusMajor = 0.0,
     this.radiusMinor = 0.0,
@@ -85,6 +61,30 @@ class TouchPoint {
       orientation: 0.0, // Default orientation for PointerMoveEvent
     );
   }
+
+  /// The unique identifier for this touch point.
+  final int pointerId;
+
+  /// The current position of the touch point.
+  final Offset position;
+
+  /// The pressure of the touch (0.0 to 1.0).
+  final double pressure;
+
+  /// The timestamp when this touch point was created.
+  final Duration timestamp;
+
+  /// The radius of the touch point.
+  final double radius;
+
+  /// The radius of the major axis of the touch point.
+  final double radiusMajor;
+
+  /// The radius of the minor axis of the touch point.
+  final double radiusMinor;
+
+  /// The orientation of the touch point in radians.
+  final double orientation;
 
   /// Creates a copy of this TouchPoint with updated values.
   TouchPoint copyWith({

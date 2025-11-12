@@ -1,26 +1,35 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'gesture_types.dart';
-import 'gesture_config.dart';
-import 'touch_point.dart';
+import 'package:flutter_gesture_zone/src/gesture_types.dart';
+import 'package:flutter_gesture_zone/src/gesture_config.dart';
+import 'package:flutter_gesture_zone/src/touch_point.dart';
+
+/// Function type for custom gesture recognizers.
+///
+/// Custom recognizers analyze touch history and return a GestureResult
+/// if a custom gesture pattern is detected, or null otherwise.
+///
+/// Example:
+/// ```dart
+/// GestureResult? myCustomRecognizer(Map<int, List<TouchPoint>> touchHistory) {
+///   // Analyze touch history and detect custom pattern
+///   if (/* custom pattern detected */) {
+///     return GestureResult(
+///       type: GestureType.custom,
+///       confidence: 0.9,
+///       touchPoints: [...],
+///       duration: Duration(milliseconds: 100),
+///       data: {'customData': 'value'},
+///     );
+///   }
+///   return null;
+/// }
+/// ```
+typedef CustomGestureRecognizer =
+    GestureResult? Function(Map<int, List<TouchPoint>> touchHistory);
 
 /// Result of a recognized gesture.
 class GestureResult {
-  /// The type of gesture that was recognized.
-  final GestureType type;
-
-  /// The confidence level of the recognition (0.0 to 1.0).
-  final double confidence;
-
-  /// Additional data specific to the gesture type.
-  final Map<String, dynamic> data;
-
-  /// The touch points that were used for this gesture.
-  final List<TouchPoint> touchPoints;
-
-  /// The duration of the gesture.
-  final Duration duration;
-
   /// Creates a new gesture result with the specified parameters.
   ///
   /// The [confidence] should be a value between 0.0 and 1.0, where 1.0 indicates
@@ -42,10 +51,25 @@ class GestureResult {
   const GestureResult({
     required this.type,
     required this.confidence,
-    this.data = const {},
     required this.touchPoints,
     required this.duration,
+    this.data = const {},
   });
+
+  /// The type of gesture that was recognized.
+  final GestureType type;
+
+  /// The confidence level of the recognition (0.0 to 1.0).
+  final double confidence;
+
+  /// Additional data specific to the gesture type.
+  final Map<String, dynamic> data;
+
+  /// The touch points that were used for this gesture.
+  final List<TouchPoint> touchPoints;
+
+  /// The duration of the gesture.
+  final Duration duration;
 
   @override
   String toString() {
@@ -55,9 +79,6 @@ class GestureResult {
 
 /// Engine for recognizing gestures from touch data.
 class GestureRecognition {
-  /// The configuration used for gesture recognition.
-  final GestureConfig config;
-
   /// Creates a new gesture recognition engine.
   ///
   /// If no configuration is provided, a default configuration will be used.
@@ -71,7 +92,13 @@ class GestureRecognition {
   /// );
   /// ```
   GestureRecognition({GestureConfig? config})
-      : config = config ?? GestureConfig.defaultConfig();
+    : config = config ?? GestureConfig.defaultConfig();
+
+  /// The configuration used for gesture recognition.
+  final GestureConfig config;
+
+  /// Custom gesture recognizers registered by the user.
+  final List<CustomGestureRecognizer> _customRecognizers = [];
 
   /// Recognizes gestures from a sequence of touch points.
   GestureResult? recognizeGesture(List<TouchPoint> touchPoints) {
@@ -123,46 +150,84 @@ class GestureRecognition {
   }
 
   /// Recognizes pinch gestures from touch history.
+  ///
+  /// Pinch gestures are detected when two fingers move closer together (zoom out)
+  /// or farther apart (zoom in). The method tracks the distance between the two
+  /// touch points over time and calculates the scale factor.
   GestureResult? recognizePinchGesture(
     Map<int, List<TouchPoint>> touchHistory,
   ) {
     if (touchHistory.length != 2) return null;
 
-    final touchPoints1 = touchHistory.values.first;
-    final touchPoints2 = touchHistory.values.last;
+    final histories = touchHistory.values.toList();
+    final touchPoints1 = histories[0];
+    final touchPoints2 = histories[1];
 
+    // Need at least 2 points in each history to calculate scale change
     if (touchPoints1.length < 2 || touchPoints2.length < 2) return null;
 
+    // Get the initial and current positions for both touch points
     final initialPoint1 = touchPoints1.first;
-    final finalPoint1 = touchPoints1.last;
+    final currentPoint1 = touchPoints1.last;
     final initialPoint2 = touchPoints2.first;
-    final finalPoint2 = touchPoints2.last;
+    final currentPoint2 = touchPoints2.last;
 
+    // Calculate the initial distance between the two touch points
     final initialDistance = _calculateDistance(
       initialPoint1.position,
       initialPoint2.position,
     );
-    final finalDistance = _calculateDistance(
-      finalPoint1.position,
-      finalPoint2.position,
+
+    // Calculate the current distance between the two touch points
+    final currentDistance = _calculateDistance(
+      currentPoint1.position,
+      currentPoint2.position,
     );
 
-    if (initialDistance == 0) return null;
+    // Avoid division by zero
+    if (initialDistance < 1.0) return null;
 
-    final scaleFactor = finalDistance / initialDistance;
-    final duration = finalPoint1.timestamp - initialPoint1.timestamp;
+    // Calculate scale factor (ratio of current distance to initial distance)
+    final scaleFactor = currentDistance / initialDistance;
 
-    if ((scaleFactor - 1.0).abs() > config.minPinchScale) {
+    // Calculate the change in distance
+    final distanceChange = (currentDistance - initialDistance).abs();
+
+    // Calculate duration
+    final startTime = initialPoint1.timestamp;
+    final endTime = currentPoint1.timestamp;
+    final duration = Duration(
+      milliseconds: endTime.inMilliseconds - startTime.inMilliseconds,
+    );
+
+    // Detect pinch if:
+    // 1. The scale change is significant (above threshold)
+    // 2. The distance change is significant (at least 10 pixels)
+    // 3. The gesture has been ongoing for at least 16ms (one frame)
+    if (duration.inMilliseconds >= 16 &&
+        distanceChange >= 10.0 &&
+        (scaleFactor - 1.0).abs() > config.minPinchScale) {
+      // Calculate the center point between the two touch points
+      final center = _calculateCenter(
+        currentPoint1.position,
+        currentPoint2.position,
+      );
+
+      // Determine if it's zoom in (scale > 1) or zoom out (scale < 1)
+      final isZoomIn = scaleFactor > 1.0;
+
       return GestureResult(
         type: GestureType.pinch,
-        confidence: 0.9,
-        touchPoints: [finalPoint1, finalPoint2],
+        confidence: 0.95,
+        touchPoints: [currentPoint1, currentPoint2],
         duration: duration,
         data: {
           'scaleFactor': scaleFactor,
-          'isZoomIn': scaleFactor > 1.0,
-          'center':
-              _calculateCenter(finalPoint1.position, finalPoint2.position),
+          'isZoomIn': isZoomIn,
+          'initialDistance': initialDistance,
+          'currentDistance': currentDistance,
+          'distanceChange': distanceChange,
+          'center': center,
         },
       );
     }
@@ -171,43 +236,90 @@ class GestureRecognition {
   }
 
   /// Recognizes rotation gestures from touch history.
+  ///
+  /// Rotation gestures are detected when two fingers rotate around a center point.
+  /// The method calculates the angle between the two touch points and tracks how
+  /// this angle changes over time.
   GestureResult? recognizeRotationGesture(
     Map<int, List<TouchPoint>> touchHistory,
   ) {
     if (touchHistory.length != 2) return null;
 
-    final touchPoints1 = touchHistory.values.first;
-    final touchPoints2 = touchHistory.values.last;
+    final histories = touchHistory.values.toList();
+    final touchPoints1 = histories[0];
+    final touchPoints2 = histories[1];
 
+    // Need at least 2 points in each history to calculate rotation
     if (touchPoints1.length < 2 || touchPoints2.length < 2) return null;
 
+    // Get the initial and current positions for both touch points
     final initialPoint1 = touchPoints1.first;
-    final finalPoint1 = touchPoints1.last;
+    final currentPoint1 = touchPoints1.last;
     final initialPoint2 = touchPoints2.first;
-    final finalPoint2 = touchPoints2.last;
+    final currentPoint2 = touchPoints2.last;
 
-    final initialAngle = _calculateAngle(
+    // Calculate the center point (pivot point for rotation)
+    final center = _calculateCenter(
       initialPoint1.position,
       initialPoint2.position,
     );
-    final finalAngle = _calculateAngle(
-      finalPoint1.position,
-      finalPoint2.position,
+
+    // Calculate initial angle from center to point1
+    final initialAngle1 = _calculateAngleFromCenter(
+      center,
+      initialPoint1.position,
     );
 
-    final rotationAngle = finalAngle - initialAngle;
-    final duration = finalPoint1.timestamp - initialPoint1.timestamp;
+    // Calculate initial angle from center to point2
+    final initialAngle2 = _calculateAngleFromCenter(
+      center,
+      initialPoint2.position,
+    );
 
-    if (rotationAngle.abs() > config.minRotationAngle) {
+    // Calculate current angle from center to point1
+    final currentAngle1 = _calculateAngleFromCenter(
+      center,
+      currentPoint1.position,
+    );
+
+    // Calculate current angle from center to point2
+    final currentAngle2 = _calculateAngleFromCenter(
+      center,
+      currentPoint2.position,
+    );
+
+    // Calculate the rotation angle for each point
+    final rotation1 = _normalizeAngle(currentAngle1 - initialAngle1);
+    final rotation2 = _normalizeAngle(currentAngle2 - initialAngle2);
+
+    // Average the rotations (both points should rotate similarly)
+    final averageRotation = (rotation1 + rotation2) / 2.0;
+
+    // Calculate duration
+    final startTime = initialPoint1.timestamp;
+    final endTime = currentPoint1.timestamp;
+    final duration = Duration(
+      milliseconds: endTime.inMilliseconds - startTime.inMilliseconds,
+    );
+
+    // Detect rotation if:
+    // 1. The rotation angle is significant (above threshold)
+    // 2. Both points rotated in the same direction (similar rotation angles)
+    // 3. The gesture has been ongoing for at least 16ms (one frame)
+    final rotationDifference = (rotation1 - rotation2).abs();
+    if (duration.inMilliseconds >= 16 &&
+        rotationDifference < 0.5 && // Both points rotated similarly
+        averageRotation.abs() > config.minRotationAngle) {
       return GestureResult(
         type: GestureType.rotation,
-        confidence: 0.9,
-        touchPoints: [finalPoint1, finalPoint2],
+        confidence: 0.95,
+        touchPoints: [currentPoint1, currentPoint2],
         duration: duration,
         data: {
-          'rotationAngle': rotationAngle,
-          'center':
-              _calculateCenter(finalPoint1.position, finalPoint2.position),
+          'rotationAngle': averageRotation,
+          'rotation1': rotation1,
+          'rotation2': rotation2,
+          'center': center,
         },
       );
     }
@@ -335,9 +447,33 @@ class GestureRecognition {
     return (point2 - point1).distance;
   }
 
-  /// Calculates the angle between two points.
+  /// Calculates the angle between two points (in radians).
+  /// Returns the angle from point1 to point2.
+  /// Calculates the angle between two points (in radians).
+  /// Returns the angle from point1 to point2.
   double _calculateAngle(Offset point1, Offset point2) {
-    return atan2(point2.dy - point1.dy, point2.dx - point1.dx);
+    final dx = point2.dx - point1.dx;
+    final dy = point2.dy - point1.dy;
+    return math.atan2(dy, dx);
+  }
+
+  /// Calculates the angle from a center point to a target point (in radians).
+  /// Returns the angle in radians, where 0 is right, π/2 is down, π is left, -π/2 is up.
+  double _calculateAngleFromCenter(Offset center, Offset point) {
+    final dx = point.dx - center.dx;
+    final dy = point.dy - center.dy;
+    return math.atan2(dy, dx);
+  }
+
+  /// Normalizes an angle to the range [-π, π].
+  double _normalizeAngle(double angle) {
+    while (angle > math.pi) {
+      angle -= 2 * math.pi;
+    }
+    while (angle < -math.pi) {
+      angle += 2 * math.pi;
+    }
+    return angle;
   }
 
   /// Calculates the center point between two points.
@@ -348,7 +484,7 @@ class GestureRecognition {
   /// Determines the swipe direction based on angle.
   GestureType _getSwipeDirection(double angle) {
     // Convert angle to degrees and normalize to 0-360
-    final degrees = (angle * 180 / pi + 360) % 360;
+    final degrees = (angle * 180 / math.pi + 360) % 360;
 
     if (degrees >= 315 || degrees < 45) {
       return GestureType.swipeRight;
@@ -386,5 +522,50 @@ class GestureRecognition {
     }
 
     return true;
+  }
+
+  /// Registers a custom gesture recognizer.
+  ///
+  /// Custom recognizers are called during gesture recognition to detect
+  /// user-defined gesture patterns. They receive the full touch history
+  /// and can return a GestureResult if a custom pattern is detected.
+  ///
+  /// Example:
+  /// ```dart
+  /// recognition.addCustomRecognizer((touchHistory) {
+  ///   // Detect custom pattern
+  ///   if (/* pattern detected */) {
+  ///     return GestureResult(...);
+  ///   }
+  ///   return null;
+  /// });
+  /// ```
+  void addCustomRecognizer(CustomGestureRecognizer recognizer) {
+    _customRecognizers.add(recognizer);
+  }
+
+  /// Removes a custom gesture recognizer.
+  void removeCustomRecognizer(CustomGestureRecognizer recognizer) {
+    _customRecognizers.remove(recognizer);
+  }
+
+  /// Clears all custom gesture recognizers.
+  void clearCustomRecognizers() {
+    _customRecognizers.clear();
+  }
+
+  /// Tries to recognize custom gestures from touch history.
+  ///
+  /// Returns the first custom gesture result found, or null if none match.
+  GestureResult? recognizeCustomGestures(
+    Map<int, List<TouchPoint>> touchHistory,
+  ) {
+    for (final recognizer in _customRecognizers) {
+      final result = recognizer(touchHistory);
+      if (result != null) {
+        return result;
+      }
+    }
+    return null;
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'gesture_zone_controller.dart';
-import 'gesture_types.dart';
-import 'gesture_config.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter_gesture_zone/src/gesture_zone_controller.dart';
+import 'package:flutter_gesture_zone/src/gesture_types.dart';
+import 'package:flutter_gesture_zone/src/gesture_config.dart';
+import 'package:flutter_gesture_zone/src/gesture_recognition.dart';
 
 /// A widget that provides advanced gesture recognition capabilities.
 ///
@@ -28,6 +30,49 @@ import 'gesture_config.dart';
 /// )
 /// ```
 class GestureZone extends StatefulWidget {
+  /// Creates a new GestureZone widget.
+  ///
+  /// The [child] parameter is required and represents the widget that will
+  /// receive gesture recognition capabilities.
+  ///
+  /// All gesture callback parameters are optional. You can provide any combination
+  /// of gesture callbacks based on your needs.
+  ///
+  /// Example:
+  /// ```dart
+  /// GestureZone(
+  ///   onTap: (result) => print('Tap detected'),
+  ///   onSwipeUp: (result) => print('Swipe up detected'),
+  ///   child: Container(
+  ///     width: 200,
+  ///     height: 200,
+  ///     color: Colors.blue,
+  ///   ),
+  /// )
+  /// ```
+  const GestureZone({
+    required this.child,
+    super.key,
+    this.controller,
+    this.config,
+    this.enabled = true,
+    this.showVisualFeedback = false,
+    this.onAnyGesture,
+    this.onTap,
+    this.onDoubleTap,
+    this.onLongPress,
+    this.onDrag,
+    this.onPinch,
+    this.onRotation,
+    this.onSwipe,
+    this.onSwipeUp,
+    this.onSwipeDown,
+    this.onSwipeLeft,
+    this.onSwipeRight,
+    this.onMultiTouch,
+    this.onCustom,
+  });
+
   /// The child widget to wrap with gesture recognition.
   final Widget child;
 
@@ -85,49 +130,6 @@ class GestureZone extends StatefulWidget {
   /// Callback for custom gestures.
   final GestureCallback? onCustom;
 
-  /// Creates a new GestureZone widget.
-  ///
-  /// The [child] parameter is required and represents the widget that will
-  /// receive gesture recognition capabilities.
-  ///
-  /// All gesture callback parameters are optional. You can provide any combination
-  /// of gesture callbacks based on your needs.
-  ///
-  /// Example:
-  /// ```dart
-  /// GestureZone(
-  ///   onTap: (result) => print('Tap detected'),
-  ///   onSwipeUp: (result) => print('Swipe up detected'),
-  ///   child: Container(
-  ///     width: 200,
-  ///     height: 200,
-  ///     color: Colors.blue,
-  ///   ),
-  /// )
-  /// ```
-  const GestureZone({
-    super.key,
-    required this.child,
-    this.controller,
-    this.config,
-    this.enabled = true,
-    this.showVisualFeedback = false,
-    this.onAnyGesture,
-    this.onTap,
-    this.onDoubleTap,
-    this.onLongPress,
-    this.onDrag,
-    this.onPinch,
-    this.onRotation,
-    this.onSwipe,
-    this.onSwipeUp,
-    this.onSwipeDown,
-    this.onSwipeLeft,
-    this.onSwipeRight,
-    this.onMultiTouch,
-    this.onCustom,
-  });
-
   @override
   State<GestureZone> createState() => _GestureZoneState();
 }
@@ -135,11 +137,101 @@ class GestureZone extends StatefulWidget {
 class _GestureZoneState extends State<GestureZone> {
   late GestureZoneController _controller;
   bool _isControllerProvided = false;
+  late ScaleGestureRecognizer _scaleRecognizer;
+
+  /// Track widget-managed callbacks to prevent duplicates
+  final Map<GestureType, GestureCallback?> _widgetCallbacks = {};
 
   @override
   void initState() {
     super.initState();
     _initializeController();
+    _initializeScaleRecognizer();
+  }
+
+  void _initializeScaleRecognizer() {
+    _scaleRecognizer = ScaleGestureRecognizer()
+      ..onStart = (details) {
+        // When scale gesture starts with 2+ fingers, mark them as multi-touch
+        if (_controller.activeTouchPointCount >= 2) {
+          // Mark all active pointers as multi-touch to prevent tap detection
+          for (final pointerId in _controller.activeTouchPoints.keys) {
+            _controller.markMultiTouchPointer(pointerId);
+          }
+
+          // Trigger multi-touch callback if available
+          if (widget.onMultiTouch != null) {
+            final result = GestureResult(
+              type: GestureType.multiTouch,
+              confidence: 1.0,
+              touchPoints: _controller.activeTouchPoints.values.toList(),
+              duration: Duration.zero,
+              data: {
+                'touchPointCount': _controller.activeTouchPointCount,
+                'focalPoint': details.focalPoint,
+              },
+            );
+            widget.onMultiTouch!(result);
+          }
+        }
+      }
+      ..onUpdate = (details) {
+        // Handle pinch gesture
+        if (widget.onPinch != null && details.scale != 1.0) {
+          final scaleChange = (details.scale - 1.0).abs();
+          if (scaleChange > (_controller.config.minPinchScale)) {
+            final result = GestureResult(
+              type: GestureType.pinch,
+              confidence: 0.95,
+              touchPoints: _controller.activeTouchPoints.values.toList(),
+              duration: Duration.zero,
+              data: {
+                'scaleFactor': details.scale,
+                'isZoomIn': details.scale > 1.0,
+                'center': details.focalPoint,
+              },
+            );
+            widget.onPinch!(result);
+          }
+        }
+
+        // Handle rotation gesture
+        if (widget.onRotation != null &&
+            details.rotation.abs() > _controller.config.minRotationAngle) {
+          final result = GestureResult(
+            type: GestureType.rotation,
+            confidence: 0.95,
+            touchPoints: _controller.activeTouchPoints.values.toList(),
+            duration: Duration.zero,
+            data: {
+              'rotationAngle': details.rotation,
+              'center': details.focalPoint,
+            },
+          );
+          widget.onRotation!(result);
+        }
+
+        // Handle general multi-touch during movement
+        if (widget.onMultiTouch != null &&
+            _controller.activeTouchPointCount >= 2) {
+          final result = GestureResult(
+            type: GestureType.multiTouch,
+            confidence: 0.9,
+            touchPoints: _controller.activeTouchPoints.values.toList(),
+            duration: Duration.zero,
+            data: {
+              'touchPointCount': _controller.activeTouchPointCount,
+              'focalPoint': details.focalPoint,
+              'scale': details.scale,
+              'rotation': details.rotation,
+            },
+          );
+          widget.onMultiTouch!(result);
+        }
+      }
+      ..onEnd = (details) {
+        // Multi-touch gesture ended
+      };
   }
 
   void _initializeController() {
@@ -155,66 +247,87 @@ class _GestureZoneState extends State<GestureZone> {
   }
 
   void _setupCallbacks() {
+    // Remove old widget callbacks before adding new ones
+    for (final entry in _widgetCallbacks.entries) {
+      if (entry.value != null) {
+        _controller.removeGestureCallback(entry.key, entry.value!);
+      }
+    }
+    _widgetCallbacks.clear();
+
     // Set general callback
     _controller.setOnAnyGesture(widget.onAnyGesture);
 
-    // Set specific callbacks
+    // Set specific callbacks and track them
     if (widget.onTap != null) {
       _controller.addGestureCallback(GestureType.tap, widget.onTap!);
+      _widgetCallbacks[GestureType.tap] = widget.onTap;
     }
     if (widget.onDoubleTap != null) {
       _controller.addGestureCallback(
         GestureType.doubleTap,
         widget.onDoubleTap!,
       );
+      _widgetCallbacks[GestureType.doubleTap] = widget.onDoubleTap;
     }
     if (widget.onLongPress != null) {
       _controller.addGestureCallback(
         GestureType.longPress,
         widget.onLongPress!,
       );
+      _widgetCallbacks[GestureType.longPress] = widget.onLongPress;
     }
     if (widget.onDrag != null) {
       _controller.addGestureCallback(GestureType.drag, widget.onDrag!);
+      _widgetCallbacks[GestureType.drag] = widget.onDrag;
     }
     if (widget.onPinch != null) {
       _controller.addGestureCallback(GestureType.pinch, widget.onPinch!);
+      _widgetCallbacks[GestureType.pinch] = widget.onPinch;
     }
     if (widget.onRotation != null) {
       _controller.addGestureCallback(GestureType.rotation, widget.onRotation!);
+      _widgetCallbacks[GestureType.rotation] = widget.onRotation;
     }
     if (widget.onSwipe != null) {
       _controller.addGestureCallback(GestureType.swipe, widget.onSwipe!);
+      _widgetCallbacks[GestureType.swipe] = widget.onSwipe;
     }
     if (widget.onSwipeUp != null) {
       _controller.addGestureCallback(GestureType.swipeUp, widget.onSwipeUp!);
+      _widgetCallbacks[GestureType.swipeUp] = widget.onSwipeUp;
     }
     if (widget.onSwipeDown != null) {
       _controller.addGestureCallback(
         GestureType.swipeDown,
         widget.onSwipeDown!,
       );
+      _widgetCallbacks[GestureType.swipeDown] = widget.onSwipeDown;
     }
     if (widget.onSwipeLeft != null) {
       _controller.addGestureCallback(
         GestureType.swipeLeft,
         widget.onSwipeLeft!,
       );
+      _widgetCallbacks[GestureType.swipeLeft] = widget.onSwipeLeft;
     }
     if (widget.onSwipeRight != null) {
       _controller.addGestureCallback(
         GestureType.swipeRight,
         widget.onSwipeRight!,
       );
+      _widgetCallbacks[GestureType.swipeRight] = widget.onSwipeRight;
     }
     if (widget.onMultiTouch != null) {
       _controller.addGestureCallback(
         GestureType.multiTouch,
         widget.onMultiTouch!,
       );
+      _widgetCallbacks[GestureType.multiTouch] = widget.onMultiTouch;
     }
     if (widget.onCustom != null) {
       _controller.addGestureCallback(GestureType.custom, widget.onCustom!);
+      _widgetCallbacks[GestureType.custom] = widget.onCustom;
     }
   }
 
@@ -225,6 +338,9 @@ class _GestureZoneState extends State<GestureZone> {
     // Update controller if needed
     if (widget.controller != oldWidget.controller) {
       _initializeController();
+    } else {
+      // Re-setup callbacks if widget properties changed
+      _setupCallbacks();
     }
 
     // Update enabled state
@@ -236,23 +352,33 @@ class _GestureZoneState extends State<GestureZone> {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: _controller.handlePointerDown,
-      onPointerMove: _controller.handlePointerMove,
-      onPointerUp: _controller.handlePointerUp,
-      onPointerCancel: _controller.handlePointerCancel,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Stack(
-            children: [
-              widget.child,
-              if (_controller.showVisualFeedback &&
-                  _controller.activeTouchPointCount > 0)
-                ..._buildTouchPointIndicators(),
-            ],
-          );
-        },
+    return RawGestureDetector(
+      gestures: {
+        ScaleGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<ScaleGestureRecognizer>(
+              () => _scaleRecognizer,
+              (ScaleGestureRecognizer instance) {},
+            ),
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Listener(
+        onPointerDown: _controller.handlePointerDown,
+        onPointerMove: _controller.handlePointerMove,
+        onPointerUp: _controller.handlePointerUp,
+        onPointerCancel: _controller.handlePointerCancel,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Stack(
+              children: [
+                widget.child,
+                if (_controller.showVisualFeedback &&
+                    _controller.activeTouchPointCount > 0)
+                  ..._buildTouchPointIndicators(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -287,6 +413,7 @@ class _GestureZoneState extends State<GestureZone> {
 
   @override
   void dispose() {
+    _scaleRecognizer.dispose();
     if (!_isControllerProvided) {
       _controller.dispose();
     }

@@ -1,47 +1,5 @@
 /// Configuration for gesture recognition parameters.
 class GestureConfig {
-  /// Minimum distance required for a drag gesture to be recognized.
-  final double minDragDistance;
-
-  /// Minimum distance required for a swipe gesture to be recognized.
-  final double minSwipeDistance;
-
-  /// Maximum time allowed for a swipe gesture to be recognized.
-  final Duration maxSwipeTime;
-
-  /// Minimum time required for a long press gesture to be recognized.
-  final Duration longPressTime;
-
-  /// Maximum time allowed between taps for a double tap to be recognized.
-  final Duration doubleTapTime;
-
-  /// Maximum distance allowed between taps for a double tap to be recognized.
-  final double doubleTapDistance;
-
-  /// Minimum scale factor change required for pinch gesture recognition.
-  final double minPinchScale;
-
-  /// Minimum rotation angle required for rotation gesture recognition.
-  final double minRotationAngle;
-
-  /// Whether to enable multi-touch gestures.
-  final bool enableMultiTouch;
-
-  /// Maximum number of simultaneous touch points allowed.
-  final int maxTouchPoints;
-
-  /// Whether to enable pressure sensitivity.
-  final bool enablePressureSensitivity;
-
-  /// Minimum pressure required for touch recognition.
-  final double minPressure;
-
-  /// Whether to enable velocity-based gesture recognition.
-  final bool enableVelocityRecognition;
-
-  /// Minimum velocity required for swipe gesture recognition.
-  final double minSwipeVelocity;
-
   /// Creates a new gesture configuration with the specified parameters.
   ///
   /// All parameters are optional and will use sensible defaults if not specified.
@@ -107,6 +65,48 @@ class GestureConfig {
       enableVelocityRecognition: false,
     );
   }
+
+  /// Minimum distance required for a drag gesture to be recognized.
+  final double minDragDistance;
+
+  /// Minimum distance required for a swipe gesture to be recognized.
+  final double minSwipeDistance;
+
+  /// Maximum time allowed for a swipe gesture to be recognized.
+  final Duration maxSwipeTime;
+
+  /// Minimum time required for a long press gesture to be recognized.
+  final Duration longPressTime;
+
+  /// Maximum time allowed between taps for a double tap to be recognized.
+  final Duration doubleTapTime;
+
+  /// Maximum distance allowed between taps for a double tap to be recognized.
+  final double doubleTapDistance;
+
+  /// Minimum scale factor change required for pinch gesture recognition.
+  final double minPinchScale;
+
+  /// Minimum rotation angle required for rotation gesture recognition.
+  final double minRotationAngle;
+
+  /// Whether to enable multi-touch gestures.
+  final bool enableMultiTouch;
+
+  /// Maximum number of simultaneous touch points allowed.
+  final int maxTouchPoints;
+
+  /// Whether to enable pressure sensitivity.
+  final bool enablePressureSensitivity;
+
+  /// Minimum pressure required for touch recognition.
+  final double minPressure;
+
+  /// Whether to enable velocity-based gesture recognition.
+  final bool enableVelocityRecognition;
+
+  /// Minimum velocity required for swipe gesture recognition.
+  final double minSwipeVelocity;
 
   /// Creates a copy of this configuration with updated values.
   GestureConfig copyWith({

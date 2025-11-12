@@ -1,20 +1,32 @@
 name: flutter_gesture_zone
 description: A Flutter package for creating custom gesture zones with advanced touch handling, multi-touch support, and gesture recognition.
-version: 0.0.4
+version: 0.1.0
 homepage: https://github.com/dhia-bechattaoui/flutter_gesture_zone
+repository: https://github.com/dhia-bechattaoui/flutter_gesture_zone
+issue_tracker: https://github.com/dhia-bechattaoui/flutter_gesture_zone/issues
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
-  flutter: ">=3.0.0"
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: ">=3.32.0"
+
+topics:
+  - flutter
+  - gestures
+  - multi-touch
+  - touch-detection
+  - gesture-recognition
+
+funding:
+  - https://github.com/sponsors/Dhia-Bechattaoui
 
 dependencies:
   flutter:
     sdk: flutter
 
 dev_dependencies:
+  flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
 
 flutter:
   # No assets needed for this package 
